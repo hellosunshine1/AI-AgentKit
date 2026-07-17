@@ -10,7 +10,13 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "@ant-design/icons-vue": "^7.0.1",
+    "@pinia/nuxt": "^1.0.1",
+    "ant-design-vue": "^4.2.6",
+    "markdown-it": "^14.3.0",
     "nuxt": "^4.4.8",
+    "pinia": "^4.0.2",
+    "uuid": "^14.0.1",
     "vue": "^3.5.39",
     "vue-router": "^5.1.0"
   }
