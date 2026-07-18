@@ -1,6 +1,7 @@
 <script setup lang="ts">
-  await navigateTo('/chat',{replace:true});
+await navigateTo('/chat', { replace: true })
 </script>
+
 <template>
-  <div></div>
+  <div />
 </template>
