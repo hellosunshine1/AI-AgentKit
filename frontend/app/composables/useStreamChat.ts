@@ -131,13 +131,18 @@ export function useStreamChat({
           const data = JSON.parse(line.replace('data: ', ''))
           switch (data.type) {
             case 'message':
-              handleMessageData(data.content) // tool_calls / tool result
+              handleMessageData(data.content)
               break
             case 'token':
-              handleTokenData(data.content) // 打字机逐字追加
+              handleTokenData(data.content)
               break
             case 'end':
               isStreaming.value = false
+              reader.cancel()
+              break
+            case 'error':
+              isStreaming.value = false
+              console.error('Stream Error:', data.content||'服务发生错误，请稍后再试')
               reader.cancel()
               break
           }
