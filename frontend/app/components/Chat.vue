@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { Message } from '~/types/chat.types'
 import { useLayoutStore } from '~/stores/layout'
 
+
 const props = defineProps<{
   // 当前路由传入的会话 ID；为空时表示新会话
   threadId?: string
@@ -81,8 +82,11 @@ watch(
       handleNewChat()
       return
     }
-    if (isStreaming.value || threadId === oldThreadId) {
+    if (threadId === oldThreadId) {
       return
+    }
+    if (isStreaming.value) {
+      stopStream()
     }
     const storedMessages = localStorage.getItem(`chatMessages-${threadId}`)
     messages.value = storedMessages ? JSON.parse(storedMessages) : []
@@ -91,7 +95,7 @@ watch(
 )
 
 // 聊天发送能力由 composable 提供，组件只负责传入当前状态
-const { handleStream } = useStreamChat({
+const { handleStream, stopStream } = useStreamChat({
   currentThreadId,
   agentId,
   messages,

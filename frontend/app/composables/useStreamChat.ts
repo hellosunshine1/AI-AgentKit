@@ -19,11 +19,25 @@ export function useStreamChat({
 }: UseStreamChatOptions) {
   const config = useRuntimeConfig() // 读取 nuxt.config 里的 apiBaseUrl（默认 http://localhost:8000）
 
+  // 当前正在读取的流，用于切换会话时主动中断旧请求
+  let currentReader: ReadableStreamDefaultReader<Uint8Array> | null = null
+
+  function stopStream() {
+    currentReader?.cancel()
+    currentReader = null
+    isStreaming.value = false
+  }
+
   /**
-   * 【链路回程】处理 SSE type=message 事件
-   * - AI 带 tool_calls → 写入最后一条消息的 toolCall.calls（MessageBubble 折叠面板）
-   * - tool 类型 → 把 DB 查询结果填到对应 tool call 的 result
-   * - AI 带 content → 更新完整文本
+   * 处理后端发来的 `message` 事件。
+   *
+   * 这里的 `content` 不是整条聊天记录，
+   * 而是后端 SSE 推过来的一条“业务事件”。
+   *
+   * 可能出现三种情况：
+   * 1. AI 要调用工具了，带着 `tool_calls`
+   * 2. AI 直接返回了一段文字，带着 `content`
+   * 3. 工具执行完了，带着 `tool_call_id` 和结果
    */
   function handleMessageData(content: {
     type: string
@@ -31,21 +45,32 @@ export function useStreamChat({
     tool_calls?: ToolCall[]
     tool_call_id?: string
   }) {
+    // 情况 1：AI 说“我要调用工具”，并且把工具参数一起发过来了
     if (content.type === 'ai' && content.tool_calls && content.tool_calls.length > 0) {
+      // 先拿到当前聊天列表里的最后一条消息
+      // 因为这里我们默认：正在更新的就是那条空的 AI 占位消息
       const lastMsg = messages.value[messages.value.length - 1]
+
+      // 取出最后一条消息里，已经存在的工具调用列表
       const calls = lastMsg?.toolCall?.calls || []
+
+      // 后端这次新发来的工具调用列表
       const toolCalls = content.tool_calls
+
+      // 先准备一个“要补进去的新工具调用”数组
       let addCalls: ToolCall[] = []
 
-      // 如果原来一个 tool call 都没有，那就直接全加进去
-      // 如果原来已经有了，就把新来的和旧的比一比
-      // 只有“没重复”的新 tool call 才加入
+      // 如果之前一个工具都没有，那就直接全部加入
+      // 如果之前已经有工具了，就尽量只加没重复的
       if (calls.length === 0) {
         addCalls = toolCalls
       } else {
+        // 逐个比较旧的和新的工具调用，避免重复添加
         for (const call of calls) {
           for (const toolCall of toolCalls) {
+            // id 不一样，说明可能是一个新的工具调用
             if (call.id !== toolCall.id) {
+              // 再确认一下这个新 toolCall 之前没有加过
               if (!addCalls.find((c) => c.id === toolCall.id)) {
                 addCalls.push(toolCall)
               }
@@ -54,6 +79,8 @@ export function useStreamChat({
         }
       }
 
+      // 把这些工具调用写回“最后一条 AI 消息”里
+      // 这样页面上就能展开显示工具调用面板
       messages.value = messages.value.map((msg, i) =>
         i === messages.value.length - 1
           ? {
@@ -65,21 +92,30 @@ export function useStreamChat({
             }
           : msg,
       )
+    // 情况 2：AI 没有工具调用，而是直接返回了一段文字
     } else if (content.type === 'ai' && content.content) {
+      // 直接把最后一条 AI 消息的正文替换成新的内容
       messages.value = messages.value.map((msg, i) =>
         i === messages.value.length - 1 ? { ...msg, content: content.content! } : msg,
       )
     }
 
+    // 情况 3：工具执行完了，后端把工具结果发回来了
     if (content.type === 'tool' && content.tool_call_id) {
-      // 工具执行完毕（如 get_user_info 查完 database.db），结果写入 call.result
+      // 这里是给工具调用补“result”字段
+      // 也就是：这个工具最后查到了什么结果
       messages.value = messages.value.map((msg, i) => {
+        // 只更新最后一条消息，并且它必须真的有 toolCall
         if (i !== messages.value.length - 1 || !msg.toolCall?.calls) return msg
+
+        // 找到对应的 tool_call_id，把结果挂到那个 call 上
         const updatedCalls = msg.toolCall.calls.map((call) =>
           call.id === content.tool_call_id
             ? { ...call, result: content.content }
             : call,
         )
+
+        // 返回更新后的最后一条消息
         return { ...msg, toolCall: { ...msg.toolCall, calls: updatedCalls } }
       })
     }
@@ -121,7 +157,8 @@ export function useStreamChat({
         body: JSON.stringify(requestMsg),
       })
 
-      const reader = response.body?.getReader()
+      currentReader = response.body?.getReader() || null
+      const reader = currentReader
       const decoder = new TextDecoder()
 
       while (reader) {
@@ -140,13 +177,11 @@ export function useStreamChat({
               handleTokenData(data.content)
               break
             case 'end':
-              isStreaming.value = false
-              reader.cancel()
+              stopStream()
               break
             case 'error':
-              isStreaming.value = false
+              stopStream()
               console.error('Stream Error:', data.content||'服务发生错误，请稍后再试')
-              reader.cancel()
               break
           }
         }
@@ -158,5 +193,5 @@ export function useStreamChat({
     }
   }
 
-  return { handleStream }
+  return { handleStream, stopStream }
 }
