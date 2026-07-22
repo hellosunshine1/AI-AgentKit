@@ -37,6 +37,9 @@ export function useStreamChat({
       const toolCalls = content.tool_calls
       let addCalls: ToolCall[] = []
 
+      // 如果原来一个 tool call 都没有，那就直接全加进去
+      // 如果原来已经有了，就把新来的和旧的比一比
+      // 只有“没重复”的新 tool call 才加入
       if (calls.length === 0) {
         addCalls = toolCalls
       } else {
