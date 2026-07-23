@@ -11,6 +11,14 @@ class EmployeeRepository:
     async def get_employee(
         cls, session: AsyncSession, employee_id: int
     ) -> Optional[Employee]:
+        """
+        按员工id查询员工信息
+        Args:
+            session: 数据库会话
+            employee_id: 员工id
+        Returns:
+            Optional[Employee]: 员工信息
+        """
         result = await session.execute(
             select(Employee).where(Employee.id == employee_id)
         )
