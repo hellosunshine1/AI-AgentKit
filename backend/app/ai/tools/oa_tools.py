@@ -1,7 +1,7 @@
 from langchain_core.tools import tool
-from db.database import async_session_maker
-from db.repository.employee_repo import EmployeeRepository
-from db.repository.department_repo import DepartmentRepository
+from app.db.database import async_session_maker
+from app.db.repository.employee_repo import EmployeeRepository
+from app.db.repository.department_repo import DepartmentRepository
 from dataclasses import asdict
 
 

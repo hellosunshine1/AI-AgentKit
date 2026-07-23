@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlmodel import SQLModel
 from typing import AsyncGenerator
 
-from core.config import settings
+from app.core.config import settings
 from functools import wraps
 from typing import Annotated
 from fastapi import Depends
